@@ -1,0 +1,81 @@
+
+
+.bg-dark-blue{
+    background-color: #020223;
+}
+
+.btn-danger{
+    background-color: #e11010;
+}
+
+#registerformdiv{
+    display: none;
+}
+
+.max-width-card {
+    max-width: 345px;
+}
+
+#text{
+    display: block;
+}
+
+#like{
+    margin-right: 10px;
+}
+
+body{
+    background-color: rgb(28, 27, 27);
+}
+
+#searchbar{
+    background-color: black;
+    border-radius: 3px;
+    border-width: 3px;
+    border-color:aliceblue
+}
+
+#maincontent{
+    margin-top:70px;
+    position:relative;
+    z-index: 2;
+}
+
+.movie-details-overlay{
+    position:absolute;
+    z-index: 998;
+}
+
+.nav-container {
+    background-color: #111;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    }
+
+    .movie-details {
+        position: fixed;
+        top: 57%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 800px;
+        height: 80%;
+        max-height: 600px;
+        background-color: #201f1f;
+        color: white;
+        padding: 20px;
+        z-index: 9999;
+        display: none;
+        overflow: auto;
+        border-radius: 30px;
+    }
+
+
+
+
+
+
+

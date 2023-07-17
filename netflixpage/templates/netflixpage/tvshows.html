@@ -1,0 +1,648 @@
+{% extends 'netflixpage/layout.html' %}
+{% load static %}
+
+{% block content %}
+    <!--TV Shows content-->
+    <div id="top-section">
+        <h1 class="text-4xl font-bold mb-4">TV Shows</h1>
+        {% if user.is_authenticated %}
+        <h6>Logged in as {{user.username}}</h6>
+        {% endif %}
+    </div>
+
+    <!--Main Iframe-->
+    <div class="container mx-auto px-4 flex-grow" id="mainiframe"></div>
+
+    <!--Movie Cards-->
+    <div class="container mx-auto px-4 flex-grow">
+        <div id="app2"></div>
+    </div>
+    
+
+    <script type="text/babel">
+        
+        //To display iframe at top of screen
+        function MainMovieCard(props){
+
+            const type = props.type;
+            const [MovieData,setMovieData] = React.useState({});
+
+
+            React.useEffect(() => {
+                //fetch request to Django backend to check if user is logged in
+                fetch(`/mainmovie/${type}/`)
+                .then((response) => response.json())
+                .then((data) => {
+                    setMovieData(data);
+                    console.log(data);
+                })
+                .catch((error) => {
+                    console.error('Error retrieving main movie iframe: ', error);
+                });
+            },[])
+
+            function CloseCard(movieid) {
+                document.getElementById(movieid).style.display = 'none';
+                document.getElementById(`overlay-${movieid}`).style.display = 'none';
+            }
+
+            function ShowCard(movieid) {
+                document.getElementById(movieid).style.display = 'block';
+                document.getElementById(`overlay-${movieid}`).style.display = 'block';
+                
+            }
+
+            function GetCookie() {
+                const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='))
+                .split('=')[1];
+                return cookieValue;
+            }
+
+            //react function to update text displayed in like/unlike button after its been clicked
+            function HandleLike(movieid,likebuttonmessage,movieortv) {
+                const csrftoken = GetCookie();
+                axios.post(`/like/${movieid}/${likebuttonmessage}/${movieortv}/`,{},{
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                    }
+                })
+                .then((response) => {
+                    //document.queryselector is not recommended to update text content of button,
+                    //instead should update state of movie data array
+                    const updatedmessage = response.data.liked_message
+
+                    setMovieData((prevData) =>({
+                        ...prevData, liked_button_message: updatedmessage
+                    }));
+                })
+                .catch((error) => {
+                    console.error('Error liking movie: ', error);
+                });
+            }
+
+            //react function to update watchlist button after its been clicked
+            function Handle_Watchlist(movieid,watchlist_message,movieortv) {
+                const csrftoken = GetCookie();
+                axios.post(`/watchlist/${movieid}/${watchlist_message}/${movieortv}/`,{},{
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                    }
+                })
+                .then((response) => {
+                    //document.queryselector is not recommended to update text content of button,
+                    //instead should update state of movie data array
+                    const updatedmessage = response.data.watchlist_message;
+                    const updatedclass = response.data.watchlist_class;
+
+                    setMovieData((prevData)=>({
+                        ...prevData, watchlist_message: updatedmessage, watchlist_class: updatedclass 
+                    }));
+                
+                })
+                .catch((error) => {
+                    console.error('Error updating watchlist: ', error);
+                });
+            }
+
+            return(
+                
+                <div className="main-movie-card">
+
+                        <div>
+                            <iframe className= "container mx-auto px-4 py-8 flex responsive-iframe" src={MovieData.embed_url} frameborder="0" allow="autoplay; encrypted-media" allowfullscreen autoplay></iframe>
+                        </div>
+
+                        <div className="text-center">
+                        <button id="moreinfo" className="btn btn-info btn-xl" onClick={()=>ShowCard(MovieData.movieid)}> More Info </button>
+                        </div>
+                        
+                        <div id={MovieData.movieid} className='movie-details'>
+                            <div className="close-button-container">
+                            {/* ()=>closecard(movie.movieid) creates a new function that calls closecard function when invoked*/}
+                            <button className="close-button" onClick={()=>CloseCard(MovieData.movieid)}>X</button>
+                            </div>
+
+                            <img height="250" width="250" src={MovieData.posterpath}></img>
+                            
+                            <a class="btn btn-info btn-lg" className={`likebutton-${MovieData.movieid}`} onClick={() => HandleLike(MovieData.movieid, MovieData.liked_button_message, "movie")}>
+                                <span class="glyphicon glyphicon-thumbs-up"></span> {MovieData.liked_button_message}
+                            </a>
+                            <a className="watchlistbutton" onClick={() => Handle_Watchlist(MovieData.movieid, MovieData.watchlist_message, "movie")}>
+                                <span class={`${MovieData.watchlist_class}`}></span> {MovieData.watchlist_message}
+                            </a>
+                            <h5>Title: {MovieData.title}</h5>
+                            <h5>Movie ID: {MovieData.movieid}</h5>
+                            <h5>Rating: {MovieData.rating}</h5>
+                            <h5>Release date: {MovieData.releasedate}</h5>
+                            <h5>Genres: {MovieData.genres}</h5>
+                            <p>Summary: {MovieData.overview}</p>
+                        </div>
+                        
+                        {/*to add effect of darkening other areas of screen when movie details of a movie is shown*/}
+                        <div id={`overlay-${MovieData.movieid}`} className = "movie-details-overlay"></div>
+                    
+                    </div>
+            )
+        }
+
+        //TV Shows Cards Reusable component that fetches real time TV Show data based on genreid
+        //In React, 'props' keyword must be used as argument to access the props passed to the functional component
+        function TVShowCardComponent(props){
+            //accessing props
+            const genreid = props.genreid;
+            const genrename = props.genrename;
+
+            const [IsAuthenticated, setIsAuthenticated] = React.useState(false);
+            const [moviedata, setmoviedata] = React.useState([]);
+            const [showDetailsTimeout, setShowDetailsTimeout] = React.useState(null);
+
+            React.useEffect(() => {
+                //fetch request to Django backend to check if user is logged in
+                fetch('/isloggedin/')
+                .then((response) => response.json())
+                .then((data) => {
+                    setIsAuthenticated(data.isLoggedIn);
+                })
+                .catch((error) => {
+                    console.error('Error checking login status: ', error);
+                });
+            },[]) //empty dependency array to prevent use effect from running infinitely lol
+            
+            React.useEffect(() => {
+                //fetch request to Django backend to dynamically retrieve real time movie data
+                fetch(`/retrievemovie/tvshows/${genreid}/${genrename}/`)
+                .then((response) => response.json())
+                .then((data) => {
+                    setmoviedata(data);
+                    console.log(data);
+                })
+                .catch((error) => {
+                    console.error('Error fetching TV show data: ', error);
+                });
+            },[]) //empty dependency array to prevent use effect from running infinitely lol
+
+        
+            function CloseCard(tvshowid) {
+                clearTimeout(showDetailsTimeout);
+                document.getElementById(tvshowid).style.display = 'none';
+                document.getElementById(`overlay-${tvshowid}`).style.display = 'none';
+            }
+            //only shows the movie card details after hovering for a second
+            function ShowCard(tvshowid) {
+                clearTimeout(showDetailsTimeout);
+                setShowDetailsTimeout(
+                setTimeout(() => {
+                    document.getElementById(tvshowid).style.display = 'block';
+                    document.getElementById(`overlay-${tvshowid}`).style.display = 'block';
+                }, 1000)
+                );
+            }
+
+            function GetCookie() {
+                const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='))
+                .split('=')[1];
+                return cookieValue;
+            }
+
+            //react function to update text displayed in like/unlike button after its been clicked
+            function HandleLike(movieid,likebuttonmessage,movieortv) {
+                const csrftoken = GetCookie();
+                axios.post(`/like/${movieid}/${likebuttonmessage}/${movieortv}/`,{},{
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                    }
+                })
+                .then((response) => {
+                    //document.queryselector is not recommended to update text content of button,
+                    //instead should update state of movie data array
+                    const updatedmessage = response.data.liked_message
+
+                    setmoviedata((prevData)=>{
+                        const updatedmovies = prevData.map((movie)=>{
+
+                            //if movie is the movie for which we clicked like button
+                            if (movie.tvshowid === movieid){
+                                //spread syntax { ...movie } copies all the properties 
+                                //of current movie object into a new movie object,
+                                //liked_button_message: updatedmessage updates the message
+                                return {...movie, liked_button_message: updatedmessage };
+                            } else{
+                                return movie;
+                            }
+                        })
+                        return updatedmovies;
+                    })
+                })
+                .catch((error) => {
+                    console.error('Error liking movie: ', error);
+                });
+            }
+
+            //react function to update watchlist button after its been clicked
+            function Handle_Watchlist(movieid,watchlist_message,movieortv) {
+                const csrftoken = GetCookie();
+                axios.post(`/watchlist/${movieid}/${watchlist_message}/${movieortv}/`,{},{
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                    }
+                })
+                .then((response) => {
+                    //document.queryselector is not recommended to update text content of button,
+                    //instead should update state of movie data array
+                    const updatedmessage = response.data.watchlist_message;
+                    const updatedclass = response.data.watchlist_class;
+
+                    setmoviedata((prevData)=>{
+                        const updatedmovies = prevData.map((movie)=>{
+
+                            //if movie is the movie for which we clicked watchlist button
+                            if (movie.tvshowid === movieid){
+                                //spread syntax { ...movie } copies all the properties 
+                                //of current movie object into a new movie object,
+                                //watchlist_message: updatedmessage updates the message
+                                return {...movie, watchlist_message: updatedmessage, watchlist_class: updatedclass };
+                            } else{
+                                return movie;
+                            }
+                        })
+                        return updatedmovies;
+                    })
+                })
+                .catch((error) => {
+                    console.error('Error updating watchlist: ', error);
+                });
+            }
+
+            //function to conditionally render the iframe
+            function Load_Iframe(movieid,iframe_message){
+                setmoviedata((prevData)=>{
+        
+                        const updatedmovies = prevData.map((movie)=>{
+
+                            //if movie is the movie for which we want to display iframe
+                            if (movie.tvshowid === movieid){
+                                //spread syntax { ...movie } copies all the properties 
+                                //of current movie object into a new movie object,
+                                //iframe_loaded:True sets it to True
+                                if (iframe_message === "View Movie Trailer"){
+                                    return {...movie, iframe_loaded: true, iframe_message: "Hide Movie Trailer" };
+                                } else{
+                                    return {...movie, iframe_loaded: false, iframe_message: "View Movie Trailer" };
+                                }
+                                
+                            } else{
+                                return movie;
+                            }
+                        })
+                        return updatedmovies;
+                    })
+                .catch((error) => {
+                    console.error('Error loading iframe: ', error);
+                });  
+            }
+            
+            return (
+                <div>
+                
+                {IsAuthenticated?(
+                <div>
+                <h4 className="genre-category">{genrename} TV Shows</h4>
+
+                <div className="movie-card-container">
+                {moviedata.map((movie) => (
+                    
+                    <div className="movie-card"
+                    onMouseEnter={()=>ShowCard(movie.tvshowid)}
+                    onMouseLeave={()=>CloseCard(movie.tvshowid)}
+                    >
+
+                        <div className="movie-image">
+                            <img className="movie-image-img" height="200" width="250" src={movie.posterpath}></img>
+                        </div>
+
+                        
+                        <div id={movie.tvshowid} className='movie-details'>
+                            <div className="close-button-container">
+                            {/* ()=>closecard(movie.movieid) creates a new function that calls closecard function when invoked*/}
+                            <button className="close-button" onClick={()=>CloseCard(movie.tvshowid)}>X</button>
+                            </div>
+
+                            <img src={movie.posterpath}></img>
+                            
+                            <div className="iframe-button">
+                            <a id="iframemobile" onClick={(event) => {
+                                        //prevent event propagation to parent elements
+                                        event.stopPropagation(); 
+                                        Load_Iframe(movie.tvshowid, movie.iframe_message);
+                                    }} class="btn btn-info btn-lg">
+                                <span class="glyphicon glyphicon-thumbs-up"></span> {movie.iframe_message}
+                            </a>
+                            </div>
+
+                            {/*ternary operator that checks if iframe_loaded is True for that movie before displaying iframe*/}
+                            {movie.iframe_loaded?(
+                            <div className="iframecontainer">
+                            <iframe width="560" height="315" src={movie.embed_url} frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                            </div>
+                            ):(
+                                <div></div>
+                            )}
+
+                            <a id="likemobile" className={`likebutton-${movie.tvshowid}`} onClick={() => HandleLike(movie.tvshowid, movie.liked_button_message, "tv")} class="btn btn-info btn-lg">
+                                <span class="glyphicon glyphicon-thumbs-up"></span> {movie.liked_button_message}
+                            </a>
+                            <a id="watchlistmobile" className="watchlistbutton" onClick={() => Handle_Watchlist(movie.tvshowid, movie.watchlist_message, "tv")} class="btn btn-info btn-lg">
+                                <span class={`${movie.watchlist_class}`}></span> {movie.watchlist_message}
+                            </a>
+                            <h5>Title: {movie.title}</h5>
+                            <h5>Movie ID: {movie.tvshowid}</h5>
+                            <h5>Rating: {movie.rating}</h5>
+                            <h5>Release date: {movie.releasedate}</h5>
+                            <h5>Genres: {movie.genres}</h5>
+                            <p>Summary: {movie.overview}</p>
+                        </div>
+                        
+
+                        {/*to add effect of darkening other areas of screen when movie details of a movie is shown*/}
+                        <div id={`overlay-${movie.tvshowid}`} className = "movie-details-overlay"></div>
+                    
+                    </div>
+                ))}
+                </div>
+                </div>
+                ):(
+                    <div></div>
+                )}
+
+                </div>
+            );
+        }
+
+        function TVShowMainCard(){
+            return <MainMovieCard type="tvshow" />
+        }
+
+        //Comedy TVShow Cards Component
+        function ComedyTVCards(){
+            return <TVShowCardComponent genreid="35" genrename="Comedy"  />
+        }
+
+        //Crime TVShow Cards Component
+        function CrimeTVCards(){
+            return <TVShowCardComponent genreid="80" genrename="Crime"  />
+        }
+
+        //Mystery TVShow Cards Component
+        function MysteryTVCards(){
+            return <TVShowCardComponent genreid="9648" genrename="Mystery"  />
+        }
+
+        //Sci Fi TVShow Cards Component
+        function ScifiTVCards(){
+            return <TVShowCardComponent genreid="10765" genrename="Sci-Fi & Fantasy"  />
+        }
+
+        //Action TVShow Cards Component
+        function ActionTVCards(){
+            return <TVShowCardComponent genreid="10759" genrename="Action & Adventure"  />
+        }
+
+        //War TVShow Cards Component
+        function WarTVCards(){
+            return <TVShowCardComponent genreid="10768" genrename="War & Politics"  />
+        }
+
+        //Western TVShow Cards Component
+        function WesternTVCards(){
+            return <TVShowCardComponent genreid="37" genrename="Western"  />
+        }
+
+        //Talk TVShow Cards Component
+        function TalkTVCards(){
+            return <TVShowCardComponent genreid="10767" genrename="Talk"  />
+        }
+
+        //Reality TVShow Cards Component
+        function RealityTVCards(){
+            return <TVShowCardComponent genreid="10764" genrename="Reality"  />
+        }
+
+        //Drama TVShow Cards Component
+        function DramaTVCards(){
+            return <TVShowCardComponent genreid="18" genrename="Drama"  />
+        }
+
+        ReactDOM.render(
+        <div>
+            <div>
+                <TVShowMainCard />
+            </div>
+        </div>
+        ,document.querySelector('#mainiframe'));
+
+        ReactDOM.render(
+        <div>
+            <div>
+                <ComedyTVCards />
+            </div>
+            <div>
+                <CrimeTVCards />
+            </div> 
+            <div>
+                <MysteryTVCards />
+            </div>
+            <div>
+                <ScifiTVCards />
+            </div> 
+            <div>
+                <ActionTVCards />
+            </div> 
+            <div>
+                <WarTVCards />
+            </div> 
+            <div>
+                <WesternTVCards />
+            </div> 
+            <div>
+                <TalkTVCards />
+            </div> 
+            <div>
+                <RealityTVCards />
+            </div> 
+            <div>
+                <DramaTVCards />
+            </div> 
+            
+        </div>
+        ,document.querySelector('#app2'));
+
+    
+    </script>
+
+    <style>
+        
+        body{
+            background-color: rgb(24, 23, 23);
+        }
+
+        .responsive-iframe {
+            position: relative;
+            width: 100%;
+            height: calc(90vw * 7 / 16); /* 16:7 aspect ratio*/
+        }
+
+        /*CSS for Movie Cards with real time movie data */
+        .genre-category{
+            color: white;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+
+        .movie-card-container {
+            display: flex !important;
+            flex-direction: row !important; /*Align items horizontally*/
+            align-items: center !important;
+            flex-wrap: nowrap !important;
+            overflow-x: scroll;
+            justify-content: flex-start;
+            margin: 0 auto; 
+        }
+
+        
+        .movie-image-img {
+            border-radius: 5px;
+            width: calc(90vw * 1 / 8);
+            height: calc(90vw * 1.5 / 8);
+        }
+
+        .movie-card {
+        position: relative;
+        flex: 0 0 auto;
+        width: calc(90vw * 1 / 7);
+        height: auto;
+        margin-right: calc(100vw* 1/500);
+        cursor: pointer;
+        margin-bottom: calc(90vw * 1/40);
+        }
+
+
+        .movie-image {
+        position: relative;
+        border-radius: 30px;
+        }
+
+        .movie-card:hover .movie-details {
+        display: block;
+        }
+
+        .movie-card:hover .movie-details-overlay{
+            display:block;
+        }
+
+        .movie-details-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 5;
+        display: none;
+        }
+
+        @media(max-width:647px){
+            .movie-details{
+                margin-top:125px;
+            }
+            #iframemobile, #watchlistmobile, #likemobile{
+                font-size: 8px;
+                height: 26px;
+            }
+            #moreinfo{
+                font-size: 12px;
+            }
+            h1{
+                font-size: 16px !important;
+            }
+            h6{
+                font-size: 12px;
+            }
+            .movie-details img {
+                width: calc(100vw* 180/647) !important;
+                height: calc(100vw* 170/647) !important;
+            }
+            h5,p {
+                font-size: 10px;
+            }
+        }
+
+        .movie-details {
+        position: fixed;
+        top: 57%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 800px;
+        height: 80%;
+        max-height: 900px;
+        background-color: #201f1f;
+        color: white;
+        padding: 20px;
+        z-index: 9999;
+        display: none;
+        overflow: auto;
+        border-radius: 30px;
+        }
+
+        .movie-details img {
+        width: calc(100vw * 4 / 13);
+        height: calc(100vw * 5 / 13);
+        margin-bottom: 10px;
+        display: block; 
+        margin-left: auto; 
+        margin-right: auto; 
+        }
+
+        .movie-details h5,
+        .movie-details p {
+        margin: 5px 0;
+        }
+
+        .likebutton {
+            margin-right: 20px;
+        }
+        .close-button{
+            position:absolute;
+        }
+
+        .watchlistbutton{
+            margin: 30px;
+        }
+
+        .iframe-button{
+            display: flex;
+            justify-content: center;
+        }
+
+        .iframecontainer{
+            display: flex;
+            justify-content: center;
+        }
+
+        #moreinfo{
+            font-size: 20px;
+        }
+
+        .responsive-iframe{
+            width: 100%;
+            aspect-ratio: 16/9;
+        }
+
+    </style>
+
+
+{% endblock %}
