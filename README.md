@@ -11,16 +11,16 @@ The Functionalities of this website include:
 
 These are the Tech Stack/Frameworks used for the project:
 
-FRONTEND - ReactJS, Tailwind CSS, Bootstrap, Font Awesome CSS
-BACKEND - Django
-API - The Movie DataBase (TMDB) API
-Languages used: Python, Javascript, JSX
+1. FRONTEND - ReactJS, Tailwind CSS, Bootstrap, Font Awesome CSS
+2. BACKEND - Django
+3. API - The Movie DataBase (TMDB) API
+4. Languages used: Python, Javascript, JSX
 
 FRONTEND UI Technologies:
-Scrolling Movie Cards - React
-Navigation Bar - HTML and Tailwind CSS
-Welcome Page Animations - React and CSS
-Welcome Page, Homepage, Moviespage, TVShows Page, Watchlist Page, Liked Movies Page - HTML, React, Tailwind CSS
+1. Scrolling Movie Cards - React
+2. Navigation Bar - HTML and Tailwind CSS
+3. Welcome Page Animations - React and CSS
+4. Welcome Page, Homepage, Moviespage, TVShows Page, Watchlist Page, Liked Movies Page - HTML, React, Tailwind CSS
 
 BACKEND Technology:
 DJANGO
